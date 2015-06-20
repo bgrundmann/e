@@ -27,8 +27,7 @@ func (p *piece) split(n int) (*piece, *piece) {
 }
 
 // A text editors buffer.
-// A text editors buffer implements Writer.  Any writes using
-// Writer append at the end of the buffer.
+// It implements Writer.  Any writes done that way are appended at the end of the buffer.
 type Buf struct {
 	bytes    bytes.Buffer
 	sentinel piece
