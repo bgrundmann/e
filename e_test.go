@@ -11,7 +11,7 @@ func ExampleBufInsert() {
 	b.Insert(5, []byte(" "))
 	fmt.Printf("%s\n", &b)
 	// Output: Hello World
-} 
+}
 
 func ExampleBufDelete() {
 	var b Buf
@@ -20,7 +20,7 @@ func ExampleBufDelete() {
 	b.Delete(0, b.Len())
 	fmt.Printf("%s\n", &b)
 	// Output:
-} 
+}
 
 func TestDeleteEnd(t *testing.T) {
 	var b Buf
@@ -31,7 +31,7 @@ func TestDeleteEnd(t *testing.T) {
 	if s != "Hel" {
 		t.Errorf("expected: \"Hel\" got: %q", s)
 	}
-} 
+}
 
 func TestDeleteStart(t *testing.T) {
 	var b Buf
@@ -42,7 +42,7 @@ func TestDeleteStart(t *testing.T) {
 	if s != "llo" {
 		t.Errorf("expected: \"llo\" got: %q", s)
 	}
-} 
+}
 
 func TestDeleteStartEnd(t *testing.T) {
 	var b Buf
@@ -53,4 +53,4 @@ func TestDeleteStartEnd(t *testing.T) {
 	if s != "Helo" {
 		t.Errorf("expected: \"Helo\" got: %q", s)
 	}
-} 
+}

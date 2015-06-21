@@ -3,6 +3,7 @@ package main
 import "bytes"
 import "fmt"
 import "strings"
+import "github.com/nsf/termbox-go"
 
 type piece struct {
 	off1 int
@@ -151,21 +152,39 @@ func (b *Buf) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+func draw(b *Buf) {
+	const coldef = termbox.ColorDefault
+	termbox.Clear(coldef, coldef)
+	//_w, _h := termbox.Size()
+	termbox.Flush()
+} 
 
 func main() {
+	err := termbox.Init()
+	if err != nil {
+		panic(err)
+	} 
+	defer termbox.Close()
+	termbox.SetInputMode(termbox.InputEsc)
 	var b Buf
 	b.Init()
 	b.Insert(0, []byte("World"))
 	b.Insert(0, []byte("Hello"))
-	b.eachpiece(func(p *piece) {
-		fmt.Printf("%+v\n", p)
-	})
-	fmt.Printf("%s\n", &b)
 	b.Insert(5, []byte(" "))
-	fmt.Printf("%s\n", &b)
-	b.eachpiece(func(p *piece) {
-		fmt.Printf("%+v\n", p)
-	})
-	fmt.Fprintf(&b, "\nHaha!")
-	fmt.Printf("%s\n", &b)
+
+mainloop:
+	for {
+		draw(&b)
+		switch ev := termbox.PollEvent(); ev.Type {
+			case termbox.EventKey:
+				switch ev.Key {
+					case termbox.KeyEsc:
+						break mainloop
+
+					default:
+				}
+			case termbox.EventError:
+				panic(ev.Err)
+		} 
+	} 
 }
