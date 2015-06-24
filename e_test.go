@@ -1,5 +1,7 @@
 package main
 
+import "io"
+import "bufio"
 import "fmt"
 import "testing"
 
@@ -21,6 +23,19 @@ func ExampleBufDelete() {
 	fmt.Printf("%s\n", &b)
 	// Output:
 }
+
+func ExampleBufReader() {
+	var b Buf
+	b.Init()
+	b.Insert(0, []byte("Hello"))
+	r := bufio.NewReaderSize(b.NewReader(0), 128)
+	s, err := r.ReadString('\n')
+	if err != io.EOF {
+		fmt.Printf("expected EOF", err)
+	} 
+	fmt.Printf("%s\n", s)
+	// Output: Hello
+} 
 
 func TestDeleteEnd(t *testing.T) {
 	var b Buf

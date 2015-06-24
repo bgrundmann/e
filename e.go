@@ -1,5 +1,6 @@
 package main
 
+import "io"
 import "bytes"
 import "fmt"
 import "strings"
@@ -65,10 +66,14 @@ func (b *Buf) findPiece(off int) (pieceStart int, piece *piece) {
 	return
 }
 
+func (b *Buf) sliceOfPiece(p *piece) []byte {
+	return b.bytes.Bytes()[p.off1:p.off2]
+} 
+
 func (b *Buf) String() string {
 	s := make([]string, 8)
 	b.eachpiece(func(p *piece) {
-		s = append(s, string(b.bytes.Bytes()[p.off1:p.off2]))
+		s = append(s, string(b.sliceOfPiece(p)))
 	})
 	return strings.Join(s, "")
 }
@@ -151,6 +156,43 @@ func (b *Buf) Write(p []byte) (n int, err error) {
 	b.Insert(b.len, p)
 	return len(p), nil
 }
+
+type Reader struct {
+	buf *Buf
+	curPiece *piece
+	curOff int
+} 
+
+/// NewReader creates a new reader starting at off.
+func (b *Buf) NewReader(off int) *Reader {
+	o, p := b.findPiece(off)
+	return &Reader {
+		buf: b,
+		curPiece: p,
+		curOff: off - o,
+	} 
+} 
+
+func (r *Reader) Read(dst []byte)(int, error) {
+	off := 0
+process_piece:
+	if r.curPiece == &r.buf.sentinel { // no more bytes
+		// return however much we copied
+		return off, io.EOF
+	} 
+	bytes := r.buf.sliceOfPiece(r.curPiece)
+	n := copy(dst[off:], bytes[r.curOff:])
+	off = off + n
+	if off == len(dst) { // no more space in buffer
+		r.curOff += n
+		return off, nil
+	} else { // we are done with the current piece
+		// but there is still space in the buffer
+		r.curPiece = r.curPiece.next
+		r.curOff = 0
+		goto process_piece
+	} 
+} 
 
 func draw(b *Buf) {
 	const coldef = termbox.ColorDefault
