@@ -32,10 +32,10 @@ func ExampleBufReader() {
 	s, err := r.ReadString('\n')
 	if err != io.EOF {
 		fmt.Printf("expected EOF", err)
-	} 
+	}
 	fmt.Printf("%s\n", s)
 	// Output: Hello
-} 
+}
 
 func TestDeleteEnd(t *testing.T) {
 	var b Buf

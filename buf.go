@@ -47,45 +47,15 @@ func (b *Buf) Len() int {
 	return b.len
 }
 
-func (b *Buf) eachpiece(f func(p *piece)) {
-	for p := b.sentinel.next; p != &b.sentinel; p = p.next {
-		f(p)
-	}
-}
-
-// findPiece finds the piece with off1 >= off
-func (b *Buf) findPiece(off int) (pieceStart int, piece *piece) {
-	pieceStart = 0
-	for piece = b.sentinel.next; piece != &b.sentinel; piece = piece.next {
-		if pieceStart <= off && off < pieceStart+piece.len() {
-			return
-		}
-		pieceStart += piece.len()
-	}
-	return
-}
-
-func (b *Buf) sliceOfPiece(p *piece) []byte {
-	return b.bytes.Bytes()[p.off1:p.off2]
-} 
-
-func (b *Buf) String() string {
-	s := make([]string, 8)
-	b.eachpiece(func(p *piece) {
-		s = append(s, string(b.sliceOfPiece(p)))
-	})
-	return strings.Join(s, "")
-}
-
 // Delete the bytes between off1 (inclusive) and off2 (exclusive) in a Buf.
 func (b *Buf) Delete(off1, off2 int) {
 	if off1 > off2 || off1 < 0 || off2 > b.len {
 		panic(fmt.Sprintf("Delete: Invalid offsets given %v-%v valid:0-%v", off1, off2, b.len))
-	} 
+	}
 	if off1 == off2 {
 		// deleting the empty string => noop
 		return
-	} 
+	}
 
 	o1, p1 := b.findPiece(off1)
 	o2, p2 := b.findPiece(off2)
@@ -99,7 +69,7 @@ func (b *Buf) Delete(off1, off2 int) {
 		prev := p1.prev
 		left, _ = p1.split(len1)
 		prev.link(left)
-	} 
+	}
 
 	var right *piece
 	if off2 == o2 {
@@ -111,10 +81,10 @@ func (b *Buf) Delete(off1, off2 int) {
 		next := p2.next
 		_, right = p2.split(len2)
 		right.link(next)
-	} 
+	}
 	left.link(right)
 	b.len -= off2 - off1
-} 
+}
 
 // Insert the bytes starting at off into a buf.
 func (b *Buf) Insert(off int, s []byte) {
@@ -124,7 +94,8 @@ func (b *Buf) Insert(off int, s []byte) {
 	if len(s) == 0 {
 		// inserting the empty string => noop
 		return
-	} 
+	}
+
 	off1 := b.bytes.Len()
 	n, err := b.bytes.Write(s)
 	if err != nil {
@@ -151,34 +122,65 @@ func (b *Buf) Insert(off int, s []byte) {
 	b.len += n
 }
 
+func (b *Buf) eachpiece(f func(p *piece)) {
+	for p := b.sentinel.next; p != &b.sentinel; p = p.next {
+		f(p)
+	}
+}
+
+// findPiece finds the piece with off1 >= off
+func (b *Buf) findPiece(off int) (pieceStart int, piece *piece) {
+	pieceStart = 0
+	for piece = b.sentinel.next; piece != &b.sentinel; piece = piece.next {
+		if pieceStart <= off && off < pieceStart+piece.len() {
+			return
+		}
+		pieceStart += piece.len()
+	}
+	return
+}
+
+func (b *Buf) sliceOfPiece(p *piece) []byte {
+	return b.bytes.Bytes()[p.off1:p.off2]
+}
+
+func (b *Buf) String() string {
+	s := make([]string, 8)
+	b.eachpiece(func(p *piece) {
+		s = append(s, string(b.sliceOfPiece(p)))
+	})
+	return strings.Join(s, "")
+}
+
+
 func (b *Buf) Write(p []byte) (n int, err error) {
 	b.Insert(b.len, p)
 	return len(p), nil
 }
 
 type Reader struct {
-	buf *Buf
+	buf      *Buf
 	curPiece *piece
-	curOff int
-} 
+	curOff   int
+}
 
 /// NewReader creates a new reader starting at off.
 func (b *Buf) NewReader(off int) *Reader {
 	o, p := b.findPiece(off)
-	return &Reader {
-		buf: b,
+	return &Reader{
+		buf:      b,
 		curPiece: p,
-		curOff: off - o,
-	} 
-} 
+		curOff:   off - o,
+	}
+}
 
-func (r *Reader) Read(dst []byte)(int, error) {
+func (r *Reader) Read(dst []byte) (int, error) {
 	off := 0
 process_piece:
 	if r.curPiece == &r.buf.sentinel { // no more bytes
 		// return however much we copied
 		return off, io.EOF
-	} 
+	}
 	bytes := r.buf.sliceOfPiece(r.curPiece)
 	n := copy(dst[off:], bytes[r.curOff:])
 	off = off + n
@@ -190,6 +192,6 @@ process_piece:
 		r.curPiece = r.curPiece.next
 		r.curOff = 0
 		goto process_piece
-	} 
-} 
+	}
+}
 
