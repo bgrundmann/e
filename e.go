@@ -2,7 +2,6 @@ package main
 
 import "github.com/nsf/termbox-go"
 import "io"
-import "bufio"
 import "os"
 
 type View struct {
@@ -19,7 +18,7 @@ func (v *View) Display() {
 	const coldef = termbox.ColorDefault
 	termbox.Clear(coldef, coldef)
 	w, h := termbox.Size()
-	r := bufio.NewReader(v.buffer.NewReader(v.off))
+	r := v.buffer.NewReader(v.off)
 	x := 0
 	y := 0
 	for {
