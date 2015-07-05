@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 ) 
 
 type piece struct {
@@ -215,6 +216,29 @@ process_piece:
 		goto process_piece
 	}
 }
+
+func (rd *Reader) ReadRune() (r rune, size int, err error) {
+	bytes := rd.buf.sliceOfPiece(rd.piece)[rd.offInPiece:]
+	// specialisation of the common case
+	if utf8.FullRune(bytes) {
+		r, size = rune(bytes[0]), 1
+		if r >= 0x80 {
+			r, size = utf8.DecodeRune(bytes)
+		} 
+		rd.off += size
+		rd.offInPiece += size
+	} else {
+		var buf [utf8.UTFMax]byte
+		n, err := rd.Read(buf[:])
+		if n == 0 {
+			return 0, 0, io.EOF
+		} else if err != nil && err != io.EOF {
+			return 0, 0, err
+		} 
+		r, size = utf8.DecodeRune(buf[:n])
+	} 
+	return r, size, nil
+} 
 
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	// TODO: Many special cases could written out.  For example
