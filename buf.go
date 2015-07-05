@@ -27,12 +27,20 @@ func (p *piece) split(n int) (*piece, *piece) {
 	return &piece{off1: p.off1, off2: off2}, &piece{off1: off2, off2: p.off2}
 }
 
+// BufferObserver is the interface that get's notified when a Buffer changes
+// Both functions are called before the change has happened
+type BufferObserver interface {
+	OnBufDelete(off1, off2 int) 
+	OnBufInsert(off int, bytes []byte)
+} 
+
 // A text editors buffer.
 // It implements Writer.  Any writes done that way are appended at the end of the buffer.
 type Buf struct {
 	bytes    bytes.Buffer
 	sentinel piece
 	len      int
+	observers []BufferObserver
 }
 
 // Init initializes a buffer and returns it.
@@ -56,6 +64,9 @@ func (b *Buf) Delete(off1, off2 int) {
 		// deleting the empty string => noop
 		return
 	}
+	for _, ob := range b.observers {
+		ob.OnBufDelete(off1, off2)
+	} 
 
 	o1, p1 := b.findPiece(off1)
 	o2, p2 := b.findPiece(off2)
@@ -95,6 +106,9 @@ func (b *Buf) Insert(off int, s []byte) {
 		// inserting the empty string => noop
 		return
 	}
+	for _, ob := range b.observers {
+		ob.OnBufDelete(off, s)
+	} 
 
 	off1 := b.bytes.Len()
 	n, err := b.bytes.Write(s)
