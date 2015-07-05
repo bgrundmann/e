@@ -1,9 +1,12 @@
 package main
 
-import "io"
-import "bytes"
-import "fmt"
-import "strings"
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+) 
 
 type piece struct {
 	off1 int
@@ -30,16 +33,16 @@ func (p *piece) split(n int) (*piece, *piece) {
 // BufferObserver is the interface that get's notified when a Buffer changes
 // Both functions are called before the change has happened
 type BufferObserver interface {
-	OnBufDelete(off1, off2 int) 
+	OnBufDelete(off1, off2 int)
 	OnBufInsert(off int, bytes []byte)
-} 
+}
 
 // A text editors buffer.
 // It implements Writer.  Any writes done that way are appended at the end of the buffer.
 type Buf struct {
-	bytes    bytes.Buffer
-	sentinel piece
-	len      int
+	bytes     bytes.Buffer
+	sentinel  piece
+	len       int
 	observers []BufferObserver
 }
 
@@ -66,7 +69,7 @@ func (b *Buf) Delete(off1, off2 int) {
 	}
 	for _, ob := range b.observers {
 		ob.OnBufDelete(off1, off2)
-	} 
+	}
 
 	o1, p1 := b.findPiece(off1)
 	o2, p2 := b.findPiece(off2)
@@ -107,8 +110,8 @@ func (b *Buf) Insert(off int, s []byte) {
 		return
 	}
 	for _, ob := range b.observers {
-		ob.OnBufDelete(off, s)
-	} 
+		ob.OnBufInsert(off, s)
+	}
 
 	off1 := b.bytes.Len()
 	n, err := b.bytes.Write(s)
@@ -166,46 +169,75 @@ func (b *Buf) String() string {
 	return strings.Join(s, "")
 }
 
-
 func (b *Buf) Write(p []byte) (n int, err error) {
 	b.Insert(b.len, p)
 	return len(p), nil
 }
 
+// The type of a Reader on the buffer.
+// Implements io.ReadSeeker
 type Reader struct {
-	buf      *Buf
-	curPiece *piece
-	curOff   int
+	buf        *Buf
+	piece      *piece
+	offInPiece int
+	off        int // absolute offset in file
 }
 
-/// NewReader creates a new reader starting at off.
+// NewReader creates a new reader starting at off.
 func (b *Buf) NewReader(off int) *Reader {
 	o, p := b.findPiece(off)
 	return &Reader{
-		buf:      b,
-		curPiece: p,
-		curOff:   off - o,
+		buf:        b,
+		piece:      p,
+		offInPiece: off - o,
+		off:        off,
 	}
 }
 
 func (r *Reader) Read(dst []byte) (int, error) {
-	off := 0
+	offDst := 0
 process_piece:
-	if r.curPiece == &r.buf.sentinel { // no more bytes
+	if r.piece == &r.buf.sentinel { // no more bytes
 		// return however much we copied
-		return off, io.EOF
+		return offDst, io.EOF
 	}
-	bytes := r.buf.sliceOfPiece(r.curPiece)
-	n := copy(dst[off:], bytes[r.curOff:])
-	off = off + n
-	if off == len(dst) { // no more space in buffer
-		r.curOff += n
-		return off, nil
+	bytes := r.buf.sliceOfPiece(r.piece)
+	n := copy(dst[offDst:], bytes[r.offInPiece:])
+	offDst += n
+	r.off += n
+	if offDst == len(dst) { // no more space in buffer
+		r.offInPiece += n
+		return offDst, nil
 	} else { // we are done with the current piece
 		// but there is still space in the buffer
-		r.curPiece = r.curPiece.next
-		r.curOff = 0
+		r.piece = r.piece.next
+		r.offInPiece = 0
 		goto process_piece
 	}
+}
+
+func (r *Reader) Seek(offset int64, whence int) (int64, error) {
+	// TODO: Many special cases could written out.  For example
+	// if position is in current piece.  Figure out if that is
+	// worth it.
+	var absoluteOff int
+	switch whence {
+	case 0: // relative to origin
+		absoluteOff = int(offset)
+	case 1: // relative to current offset
+		absoluteOff = r.off + int(offset)
+	case 2: // relative to end
+		absoluteOff = r.buf.Len() + int(offset)
+	default:
+		panic("Invalid argument passed as whence to Seek")
+	}
+	if absoluteOff < 0 {
+		return 0, errors.New("Invalid offset given to Seek")
+	}
+	o, p := r.buf.findPiece(absoluteOff)
+	r.off = absoluteOff
+	r.offInPiece = absoluteOff - o
+	r.piece = p
+	return int64(absoluteOff), nil
 }
 

@@ -25,12 +25,12 @@ func (v *View) Display() {
 	for {
 		rune, _, err := r.ReadRune()
 		if x >= w {
-			x = 0 
+			x = 0
 			y++
-		} 
+		}
 		if y >= h || err == io.EOF {
 			break
-		} 
+		}
 		switch rune {
 		case '\n':
 			y++
@@ -39,15 +39,15 @@ func (v *View) Display() {
 			for {
 				termbox.SetCell(x, y, ' ', coldef, coldef)
 				x++
-				if x % 4 == 0 || x >= w {
+				if x%4 == 0 || x >= w {
 					break
-				} 
-			} 
+				}
+			}
 		default:
 			termbox.SetCell(x, y, rune, coldef, coldef)
 			x++
-		} 
-	} 
+		}
+	}
 	termbox.Flush()
 }
 
@@ -56,11 +56,11 @@ func AppendFile(buf *Buf, filename string) error {
 	f, err := os.Open("e.go")
 	if err != nil {
 		return err
-	} 
+	}
 	defer f.Close()
 	_, err = io.Copy(buf, f)
 	return err
-} 
+}
 
 func main() {
 	err := termbox.Init()
