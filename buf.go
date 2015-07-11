@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
-) 
+)
 
 type piece struct {
 	off1 int
@@ -180,7 +180,7 @@ func (b *Buf) Write(p []byte) (n int, err error) {
 type Reader struct {
 	buf        *Buf
 	piece      *piece
-	offInPiece int
+	offInPiece int // offset in the current piece
 	off        int // absolute offset in file
 }
 
@@ -224,7 +224,7 @@ func (rd *Reader) ReadRune() (r rune, size int, err error) {
 		r, size = rune(bytes[0]), 1
 		if r >= 0x80 {
 			r, size = utf8.DecodeRune(bytes)
-		} 
+		}
 		rd.off += size
 		rd.offInPiece += size
 	} else {
@@ -234,11 +234,11 @@ func (rd *Reader) ReadRune() (r rune, size int, err error) {
 			return 0, 0, io.EOF
 		} else if err != nil && err != io.EOF {
 			return 0, 0, err
-		} 
+		}
 		r, size = utf8.DecodeRune(buf[:n])
-	} 
+	}
 	return r, size, nil
-} 
+}
 
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	// TODO: Many special cases could written out.  For example
@@ -265,3 +265,24 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	return int64(absoluteOff), nil
 }
 
+// Line returns the offset of the first character of Line n.  If n is
+// greater than the number of lines in the buffer, the offset of the first
+// character in the last line is returned.  Note Line numbers start at 1.
+func (b *Buf) Line(n int) int {
+	off := 0
+	r := b.NewReader(off)
+	startOfLine := off
+	for linesToSkip := n - 1; linesToSkip > 0; linesToSkip-- {
+		for {
+			rn, n, err := r.ReadRune()
+			off += n
+			if err != nil {
+				return startOfLine
+			} else if rn == '\n' {
+				startOfLine = off
+				break
+			}
+		}
+	}
+	return startOfLine
+}

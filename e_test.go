@@ -69,3 +69,19 @@ func TestDeleteStartEnd(t *testing.T) {
 		t.Errorf("expected: \"Helo\" got: %q", s)
 	}
 }
+
+func TestLine(t *testing.T) {
+	var b Buf
+	b.Init()
+	b.Insert(0, []byte("Hello\nWorld\n\nThis is a test\n"))
+	test := func(n, off int) {
+		got := b.Line(n)
+		if got != off {
+			t.Errorf("Line %v expected %v got: %v", n, off, got)
+		}
+	}
+	test(1, 0)
+	test(2, 6)
+	test(3, 12)
+	test(4, 13)
+}

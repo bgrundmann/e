@@ -15,6 +15,7 @@ func (v *View) Init(b *Buf) {
 }
 
 func (v *View) Display() {
+	// This implements simple wrapping
 	const coldef = termbox.ColorDefault
 	termbox.Clear(coldef, coldef)
 	w, h := termbox.Size()
