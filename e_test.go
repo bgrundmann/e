@@ -85,3 +85,15 @@ func TestLine(t *testing.T) {
 	test(3, 12)
 	test(4, 13)
 }
+
+func TestLines(t *testing.T) {
+	var b Buf
+	b.Init()
+	if b.Lines() != 1 {
+		t.Errorf("empty buffer should have 1 line")
+	} 
+	b.Insert(0, []byte("Hello\n\nFoo"))
+	if n := b.Lines(); n != 3 {
+		t.Errorf("expected 3 lines got %v", n)
+	} 
+} 

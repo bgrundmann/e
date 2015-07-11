@@ -286,3 +286,20 @@ func (b *Buf) Line(n int) int {
 	}
 	return startOfLine
 }
+
+// Lines returns the number of lines in the buffer
+// The empty buffer has exactly one (empty) line.
+func (b *Buf) Lines() int {
+	r := b.NewReader(0)
+	lines := 1
+	for {
+		rn, _, err := r.ReadRune()
+		if err != nil {
+			break;
+		} 
+		if rn == '\n' {
+			lines++
+		} 
+	} 
+	return lines
+} 

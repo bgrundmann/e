@@ -5,13 +5,13 @@ import "io"
 import "os"
 
 type View struct {
-	buffer *Buf
-	off    int
+	buffer    *Buf // views may share same buffer
+	firstLine int  // first visible line on screen
 }
 
 func (v *View) Init(b *Buf) {
 	v.buffer = b
-	v.off = 0
+	v.firstLine = 1
 }
 
 func (v *View) Display() {
@@ -19,7 +19,7 @@ func (v *View) Display() {
 	const coldef = termbox.ColorDefault
 	termbox.Clear(coldef, coldef)
 	w, h := termbox.Size()
-	r := v.buffer.NewReader(v.off)
+	r := v.buffer.NewReader(v.buffer.Line(v.firstLine))
 	x := 0
 	y := 0
 	for {
