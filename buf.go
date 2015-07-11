@@ -295,11 +295,11 @@ func (b *Buf) Lines() int {
 	for {
 		rn, _, err := r.ReadRune()
 		if err != nil {
-			break;
-		} 
+			break
+		}
 		if rn == '\n' {
 			lines++
-		} 
-	} 
+		}
+	}
 	return lines
-} 
+}

@@ -5,13 +5,43 @@ import "io"
 import "os"
 
 type View struct {
-	buffer    *Buf // views may share same buffer
-	firstLine int  // first visible line on screen
+	buffer        *Buf // views may share same buffer
+	firstLine     int  // first visible line on screen
+	width, height int  // size last time it was displayed
+	cursorOff     int  // offset of cursor in buffer
 }
 
 func (v *View) Init(b *Buf) {
 	v.buffer = b
 	v.firstLine = 1
+	// We initialize width and height with something
+	// sensible here.  Will be updated on first display
+	v.width = 80
+	v.height = 25
+	v.cursorOff = 0
+}
+
+func (v *View) PageDown() {
+	lines := v.buffer.Lines()
+	v.firstLine += v.height - 2 // like a little overlap
+	if v.firstLine > lines-v.height+1 {
+		v.firstLine = lines - v.height + 1
+	}
+}
+
+func (v *View) PageUp() {
+	v.firstLine -= v.height - 2 // like a little overlap
+	if v.firstLine < 0 {
+		v.firstLine = 0
+	}
+}
+
+func (v *View) CursorRight() {
+	r := v.buffer.NewReader(v.cursorOff)
+	_, n, err := r.ReadRune()
+	if err == nil {
+		v.cursorOff += n
+	}
 }
 
 func (v *View) Display() {
@@ -19,11 +49,19 @@ func (v *View) Display() {
 	const coldef = termbox.ColorDefault
 	termbox.Clear(coldef, coldef)
 	w, h := termbox.Size()
-	r := v.buffer.NewReader(v.buffer.Line(v.firstLine))
+	v.width = w
+	v.height = h
+	off := v.buffer.Line(v.firstLine)
+	r := v.buffer.NewReader(off)
 	x := 0
 	y := 0
+	termbox.HideCursor()
 	for {
-		rune, _, err := r.ReadRune()
+		rune, n, err := r.ReadRune()
+		if v.cursorOff == off {
+			termbox.SetCursor(x, y)
+		}
+		off += n
 		if x >= w {
 			x = 0
 			y++
@@ -83,8 +121,15 @@ mainloop:
 			switch ev.Key {
 			case termbox.KeyEsc:
 				break mainloop
-
+			case termbox.KeyPgdn:
+				v.PageDown()
+			case termbox.KeyPgup:
+				v.PageUp()
 			default:
+				switch ev.Ch {
+				case 'l':
+					v.CursorRight()
+				}
 			}
 		case termbox.EventError:
 			panic(ev.Err)
