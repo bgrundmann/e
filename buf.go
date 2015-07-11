@@ -175,6 +175,45 @@ func (b *Buf) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// Line returns the offset of the first character of Line n.  If n is
+// greater than the number of lines in the buffer, the offset of the first
+// character in the last line is returned.  Note Line numbers start at 1.
+func (b *Buf) Line(n int) int {
+	off := 0
+	r := b.NewReader(off)
+	startOfLine := off
+	for linesToSkip := n - 1; linesToSkip > 0; linesToSkip-- {
+		for {
+			rn, n, err := r.ReadRune()
+			off += n
+			if err != nil {
+				return startOfLine
+			} else if rn == '\n' {
+				startOfLine = off
+				break
+			}
+		}
+	}
+	return startOfLine
+}
+
+// Lines returns the number of lines in the buffer
+// The empty buffer has exactly one (empty) line.
+func (b *Buf) Lines() int {
+	r := b.NewReader(0)
+	lines := 1
+	for {
+		rn, _, err := r.ReadRune()
+		if err != nil {
+			break
+		}
+		if rn == '\n' {
+			lines++
+		}
+	}
+	return lines
+}
+
 // The type of a Reader on the buffer.
 // Implements io.ReadSeeker
 type Reader struct {
@@ -265,41 +304,3 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	return int64(absoluteOff), nil
 }
 
-// Line returns the offset of the first character of Line n.  If n is
-// greater than the number of lines in the buffer, the offset of the first
-// character in the last line is returned.  Note Line numbers start at 1.
-func (b *Buf) Line(n int) int {
-	off := 0
-	r := b.NewReader(off)
-	startOfLine := off
-	for linesToSkip := n - 1; linesToSkip > 0; linesToSkip-- {
-		for {
-			rn, n, err := r.ReadRune()
-			off += n
-			if err != nil {
-				return startOfLine
-			} else if rn == '\n' {
-				startOfLine = off
-				break
-			}
-		}
-	}
-	return startOfLine
-}
-
-// Lines returns the number of lines in the buffer
-// The empty buffer has exactly one (empty) line.
-func (b *Buf) Lines() int {
-	r := b.NewReader(0)
-	lines := 1
-	for {
-		rn, _, err := r.ReadRune()
-		if err != nil {
-			break
-		}
-		if rn == '\n' {
-			lines++
-		}
-	}
-	return lines
-}
