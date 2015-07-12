@@ -36,6 +36,15 @@ func (v *View) PageUp() {
 	}
 }
 
+func (v *View) CursorLeft() {
+	r := v.buffer.NewReader(v.cursorOff)
+	r.Reverse()
+	_, n, err := r.ReadRune()
+	if err == nil {
+		v.cursorOff -= n
+	}
+}
+
 func (v *View) CursorRight() {
 	r := v.buffer.NewReader(v.cursorOff)
 	_, n, err := r.ReadRune()
@@ -129,6 +138,8 @@ mainloop:
 				switch ev.Ch {
 				case 'l':
 					v.CursorRight()
+				case 'h':
+					v.CursorLeft()
 				}
 			}
 		case termbox.EventError:

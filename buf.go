@@ -215,12 +215,14 @@ func (b *Buf) Lines() int {
 }
 
 // The type of a Reader on the buffer.
-// Implements io.ReadSeeker
+// Implements io.ReadSeeker and RuneReader also implements reading in 
+// reverse direction.  At the moment only for runes.
 type Reader struct {
 	buf        *Buf
 	piece      *piece
 	offInPiece int // offset in the current piece
 	off        int // absolute offset in file
+	reverse    bool // read in reverse direction
 }
 
 // NewReader creates a new reader starting at off.
@@ -231,10 +233,19 @@ func (b *Buf) NewReader(off int) *Reader {
 		piece:      p,
 		offInPiece: off - o,
 		off:        off,
+		reverse:    false,
 	}
 }
 
+// Reverse reverses direction of reading.
+func (rd *Reader) Reverse() {
+	rd.reverse = !rd.reverse
+} 
+
 func (r *Reader) Read(dst []byte) (int, error) {
+	if r.reverse {
+		panic("Reader.Read in reverse direction not implemented")
+	} 
 	offDst := 0
 process_piece:
 	if r.piece == &r.buf.sentinel { // no more bytes
@@ -256,7 +267,7 @@ process_piece:
 	}
 }
 
-func (rd *Reader) ReadRune() (r rune, size int, err error) {
+func (rd *Reader) readRuneForward() (r rune, size int, err error) {
 	bytes := rd.buf.sliceOfPiece(rd.piece)[rd.offInPiece:]
 	// specialisation of the common case
 	if utf8.FullRune(bytes) {
@@ -278,6 +289,49 @@ func (rd *Reader) ReadRune() (r rune, size int, err error) {
 	}
 	return r, size, nil
 }
+
+func (rd *Reader) readRuneBackward() (r rune, size int, err error) {
+	var bytes [4]byte
+	size=0
+read_next_byte:
+	if rd.off == 0 {
+		if size == 0 {
+			return 0, 0, io.EOF
+		} 
+		// this means we wanted to read another byte
+		// because we don't have a valid utf character
+		// yet but there are not anymore...
+		// TODO: handle that
+		panic("partial utf8 at end of buffer not yet implemented")
+	} 
+	if rd.offInPiece <= 0 {
+		rd.piece = rd.piece.prev
+		rd.offInPiece = rd.piece.off2 
+	} 
+	bytes[size] = rd.buf.sliceOfPiece(rd.piece)[rd.offInPiece-1]
+	size++
+	rd.offInPiece--
+	rd.off--
+	if rd.offInPiece <= 0 {
+		rd.piece = rd.piece.prev
+		rd.offInPiece = rd.piece.off2 
+	} 
+	if utf8.FullRune(bytes[:size]) {
+		r, size = utf8.DecodeRune(bytes[:size])
+		return r, size, nil
+	} 
+	// not a full rune read another byte into the
+	// buffer and try again
+	goto read_next_byte
+}
+
+func (rd *Reader) ReadRune() (rune, int, error) {
+	if rd.reverse {
+		return rd.readRuneBackward()
+	} else {
+		return rd.readRuneForward()
+	} 
+} 
 
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	// TODO: Many special cases could written out.  For example
@@ -302,64 +356,5 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	r.offInPiece = absoluteOff - o
 	r.piece = p
 	return int64(absoluteOff), nil
-}
-
-// The type of a Reader on the buffer that reads in reverse direction.
-// Only implements ReadRune 
-// TODO: Implement UnreadRune and Seek
-type ReverseReader struct {
-	buf        *Buf
-	piece      *piece
-	offInPiece int // offset in the current piece (to the right of next rune read)
-	off        int // absolute offset in file
-}
-
-// NewReverseReader creates a new reader starting at off, that reads
-// in reverse direction.  Note that off is the offset of the rune
-// to the right of the next rune we will read.
-func (b *Buf) NewReverseReader(off int) *ReverseReader {
-	o, p := b.findPiece(off)
-	rd := &ReverseReader{
-		buf:        b,
-		piece:      p,
-		offInPiece: off - o,
-		off:        off,
-	}
-	if rd.offInPiece <= 0 {
-		rd.piece = rd.piece.prev
-		rd.offInPiece = rd.piece.off2 
-	} 
-	return rd
-}
-
-func (rd *ReverseReader) ReadRune() (r rune, size int, err error) {
-	var bytes [4]byte
-	size=0
-read_next_byte:
-	if rd.off == 0 {
-		if size == 0 {
-			return 0, 0, io.EOF
-		} 
-		// this means we wanted to read another byte
-		// because we don't have a valid utf character
-		// yet but there are not anymore...
-		// TODO: handle that
-		panic("partial utf8 at end of buffer not yet implemented")
-	} 
-	bytes[size] = rd.buf.sliceOfPiece(rd.piece)[rd.offInPiece-1]
-	size++
-	rd.offInPiece--
-	rd.off--
-	if rd.offInPiece <= 0 {
-		rd.piece = rd.piece.prev
-		rd.offInPiece = rd.piece.off2 
-	} 
-	if utf8.FullRune(bytes[:size]) {
-		r, size = utf8.DecodeRune(bytes[:size])
-		return r, size, nil
-	} 
-	// not a full rune read another byte into the
-	// buffer and try again
-	goto read_next_byte
 }
 

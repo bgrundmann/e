@@ -41,7 +41,8 @@ func TestBufReverseReader(t *testing.T) {
 	var b Buf
 	b.Init()
 	b.Insert(0, []byte("Hello"))
-	r := b.NewReverseReader(5)
+	r := b.NewReader(5)
+	r.Reverse()
 	check := func(c rune) {
 		if ch, n, err := r.ReadRune(); !(ch == c && n == 1 && err == nil) {
 			t.Errorf("Expected %c got: %c", c, ch)	
