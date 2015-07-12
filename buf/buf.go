@@ -1,4 +1,6 @@
-package main
+// This package implements a text editors buffer using the piece table method
+// ala Oberon.
+package buf
 
 import (
 	"bytes"

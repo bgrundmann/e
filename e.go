@@ -1,17 +1,18 @@
 package main
 
 import "github.com/nsf/termbox-go"
+import "github.com/bgrundmann/e/buf"
 import "io"
 import "os"
 
 type View struct {
-	buffer        *Buf // views may share same buffer
+	buffer        *buf.Buf // views may share same buffer
 	firstLine     int  // first visible line on screen
 	width, height int  // size last time it was displayed
 	cursorOff     int  // offset of cursor in buffer
 }
 
-func (v *View) Init(b *Buf) {
+func (v *View) Init(b *buf.Buf) {
 	v.buffer = b
 	v.firstLine = 1
 	// We initialize width and height with something
@@ -99,7 +100,7 @@ func (v *View) Display() {
 }
 
 // AppendFile appends the contents of file to buf.
-func AppendFile(buf *Buf, filename string) error {
+func AppendFile(buf *buf.Buf, filename string) error {
 	f, err := os.Open("e.go")
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func main() {
 	}
 	defer termbox.Close()
 	termbox.SetInputMode(termbox.InputEsc)
-	var b Buf
+	var b buf.Buf
 	b.Init()
 	var v View
 	v.Init(&b)

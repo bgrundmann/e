@@ -1,4 +1,4 @@
-package main
+package buf
 
 import "io"
 import "bufio"
