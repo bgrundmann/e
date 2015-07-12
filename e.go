@@ -3,6 +3,7 @@ package main
 import "github.com/nsf/termbox-go"
 import "github.com/bgrundmann/e/buf"
 import "github.com/bgrundmann/e/motion"
+import "github.com/bgrundmann/e/view"
 import "io"
 import "os"
 import "flag"
@@ -10,92 +11,6 @@ import "fmt"
 import "log"
 import "encoding/json"
 import "runtime/pprof"
-
-type View struct {
-	buffer        *buf.Buf // views may share same buffer
-	firstLine     int      // first visible line on screen
-	width, height int      // size last time it was displayed
-	cursor        buf.Marker
-}
-
-func (v *View) Init(b *buf.Buf) {
-	v.buffer = b
-	v.firstLine = 1
-	// We initialize width and height with something
-	// sensible here.  Will be updated on first display
-	v.width = 80
-	v.height = 25
-	v.cursor = v.buffer.NewMarker(0)
-}
-
-func (v *View) PageDown() {
-	lines := v.buffer.Lines()
-	v.firstLine += v.height - 2 // like a little overlap
-	if v.firstLine > lines-v.height+1 {
-		v.firstLine = lines - v.height + 1
-	}
-}
-
-func (v *View) PageUp() {
-	v.firstLine -= v.height - 2 // like a little overlap
-	if v.firstLine < 0 {
-		v.firstLine = 0
-	}
-}
-
-// MoveCursor moves the cursor by motion
-func (v *View) MoveCursor(m motion.Motion) {
-	rd := v.buffer.NewReader(v.cursor.Offset())
-	if m.Move(v.buffer, rd) {
-		pos, _ := rd.Seek(0, 1)
-		v.cursor.Move(int(pos))
-	}
-}
-
-func (v *View) Display() {
-	// This implements simple wrapping
-	const coldef = termbox.ColorDefault
-	termbox.Clear(coldef, coldef)
-	w, h := termbox.Size()
-	v.width = w
-	v.height = h
-	off := v.buffer.Line(v.firstLine)
-	r := v.buffer.NewReader(off)
-	x := 0
-	y := 0
-	termbox.HideCursor()
-	for {
-		rune, n, err := r.ReadRune()
-		if v.cursor.Offset() == off {
-			termbox.SetCursor(x, y)
-		}
-		off += n
-		if x >= w {
-			x = 0
-			y++
-		}
-		if y >= h || err == io.EOF {
-			break
-		}
-		switch rune {
-		case '\n':
-			y++
-			x = 0
-		case '\t':
-			for {
-				termbox.SetCell(x, y, ' ', coldef, coldef)
-				x++
-				if x%4 == 0 || x >= w {
-					break
-				}
-			}
-		default:
-			termbox.SetCell(x, y, rune, coldef, coldef)
-			x++
-		}
-	}
-	termbox.Flush()
-}
 
 // AppendFile appends the contents of file to buf.
 func AppendFile(buf *buf.Buf, filename string) error {
@@ -197,7 +112,7 @@ func initEventSource(args commandLineArgs) (nextEvent func() termbox.Event, clea
 	} 
 } 
 
-func initBufferAndView(v *View, args commandLineArgs) func() {
+func initBufferAndView(v *view.View, args commandLineArgs) func() {
 	var b buf.Buf
 	b.Init()
 	v.Init(&b)
@@ -226,7 +141,7 @@ func main() {
 	args := parseCommandLine()
 	cleanup := initTermbox(); defer cleanup()
 	nextEvent, cleanup := initEventSource(args); defer cleanup()
-	var v View
+	var v view.View
 	cleanup = initBufferAndView(&v, args); defer cleanup()
 	// not that interested in startup and tear down cost
 	// so let's start profiling only now
