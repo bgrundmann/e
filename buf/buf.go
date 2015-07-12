@@ -177,6 +177,68 @@ func (b *Buf) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// A position in a file given by line and column (both starting at 1)
+// Note that this is a position in the file.  In particular columns
+// are counted in number of runes in the line NOT number of characters
+// displayed on the screen (e.g. '\t' counts as 1 not 8, ...).
+type Position struct {
+	Line int   
+	Column int
+} 
+
+// Translate a offset into a position.  Errors if offset is not a valid
+// position (that is either > length of the file or in the middle of a 
+// multibyte utf8 sequence).
+func (b *Buf) PositionFromOffset(off int) (Position, error) {
+	// TODO: This can obviously made more efficient by caching, etc...
+	pos := Position {
+		Line: 1,
+		Column: 1,
+	} 
+	rd := b.NewReader(0)
+	for rd.Offset() != off {
+		r, _, err := rd.ReadRune()
+		if err != nil {
+			return Position{}, err
+		} 
+		if r == '\n' {
+			pos.Line++
+			pos.Column = 1
+		} else {
+			pos.Column++
+		}
+	}
+	return pos, nil
+} 
+
+// Translate a position into an offset. Errors if the given position
+// is not a valid position.
+func (b *Buf) PositionToOffset(p Position) (int, error) {
+	rd := b.NewReader(0)
+	for linesToSkip := p.Line - 1; linesToSkip > 0; linesToSkip-- {
+		for {
+			r, _, err := rd.ReadRune()
+			if err != nil {
+				return 0, err
+			} 
+			if r == '\n' {
+				break
+			} 
+		} 
+	} 
+	// we are in the right line
+	for runesToSkip := p.Column - 1; runesToSkip > 0; runesToSkip-- {
+		r, _, err := rd.ReadRune()
+		if err != nil {
+			return 0, err
+		} 
+		if r == '\n' {
+			return 0, fmt.Errorf("Invalid position line %i contains less than %i columns", p.Line, p.Column)
+		} 
+	} 
+	return rd.Offset(), nil
+} 
+
 // Line returns the offset of the first character of Line n.  If n is
 // greater than the number of lines in the buffer, the offset of the first
 // character in the last line is returned.  Note Line numbers start at 1.
@@ -190,7 +252,8 @@ func (b *Buf) Line(n int) int {
 			off += n
 			if err != nil {
 				return startOfLine
-			} else if rn == '\n' {
+			} 
+			if rn == '\n' {
 				startOfLine = off
 				break
 			}
@@ -357,6 +420,12 @@ func (rd *Reader) UnreadRune() error {
 	} 
 	_, err := rd.Seek(offset, 0)
 	return err
+} 
+
+// Return the current offset of the reader in the file.
+// Equivalent to Seek(0, 1) but more readable 
+func (r *Reader) Offset() int {
+	return r.off
 } 
 
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {

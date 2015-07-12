@@ -8,9 +8,9 @@ import "os"
 
 type View struct {
 	buffer        *buf.Buf // views may share same buffer
-	firstLine     int  // first visible line on screen
-	width, height int  // size last time it was displayed
-	cursorOff     int  // offset of cursor in buffer
+	firstLine     int      // first visible line on screen
+	width, height int      // size last time it was displayed
+	cursorOff     int      // offset of cursor in buffer
 }
 
 func (v *View) Init(b *buf.Buf) {
@@ -44,8 +44,8 @@ func (v *View) MoveCursor(m motion.Motion) {
 	if m.Move(v.buffer, rd) {
 		pos, _ := rd.Seek(0, 1)
 		v.cursorOff = int(pos)
-	} 
-} 
+	}
+}
 
 func (v *View) Display() {
 	// This implements simple wrapping
@@ -122,7 +122,7 @@ mainloop:
 		switch ev := termbox.PollEvent(); ev.Type {
 		case termbox.EventKey:
 			switch ev.Key {
-			case termbox.KeyEsc: 
+			case termbox.KeyEsc:
 				break mainloop
 			case termbox.KeyPgdn:
 				v.PageDown()
@@ -134,6 +134,10 @@ mainloop:
 					v.MoveCursor(motion.RuneForward)
 				case 'h':
 					v.MoveCursor(motion.RuneBackward)
+				case 'j':
+					v.MoveCursor(motion.LineForward)
+				case 'k':
+					v.MoveCursor(motion.LineBackward)
 				}
 			}
 		case termbox.EventError:
