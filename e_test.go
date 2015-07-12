@@ -37,6 +37,26 @@ func ExampleBufReader() {
 	// Output: Hello
 }
 
+func TestBufReverseReader(t *testing.T) {
+	var b Buf
+	b.Init()
+	b.Insert(0, []byte("Hello"))
+	r := b.NewReverseReader(5)
+	check := func(c rune) {
+		if ch, n, err := r.ReadRune(); !(ch == c && n == 1 && err == nil) {
+			t.Errorf("Expected %c got: %c", c, ch)	
+		} 
+	} 
+	check('o')
+	check('l')
+	check('l')
+	check('e')
+	check('H')
+	if ch, n, err := r.ReadRune(); err != io.EOF {
+		t.Errorf("Expected EOF got: %c - %i - %v", ch, n, err)
+	} 
+} 
+
 func TestDeleteEnd(t *testing.T) {
 	var b Buf
 	b.Init()
