@@ -48,7 +48,14 @@ type Buf struct {
 	len                int
 	nextFreeObserverId int
 	observers          map[int]BufferObserver
+	lineCache          OneLineCache // position of most recently asked for line
+	lines              int // number of lines in buffer or 0 if unknown
 }
+
+type OneLineCache struct {
+	line int  // the line starting at 1 (if zero the cache is invalid)
+	off int   // offset of the line
+} 
 
 // Init initializes a buffer and returns it.
 func (b *Buf) Init() *Buf {
@@ -72,6 +79,8 @@ func (b *Buf) Delete(off1, off2 int) {
 		// deleting the empty string => noop
 		return
 	}
+	b.lineCache.line = 0
+	b.lines = 0
 	for _, ob := range b.observers {
 		ob.OnBufDelete(off1, off2)
 	}
@@ -114,6 +123,8 @@ func (b *Buf) Insert(off int, s []byte) {
 		// inserting the empty string => noop
 		return
 	}
+	b.lineCache.line = 0
+	b.lines = 0
 	for _, ob := range b.observers {
 		ob.OnBufInsert(off, s)
 	}
@@ -216,18 +227,8 @@ func (b *Buf) PositionFromOffset(off int) (Position, error) {
 // Translate a position into an offset. Errors if the given position
 // is not a valid position.
 func (b *Buf) PositionToOffset(p Position) (int, error) {
-	rd := b.NewReader(0)
-	for linesToSkip := p.Line - 1; linesToSkip > 0; linesToSkip-- {
-		for {
-			r, _, err := rd.ReadRune()
-			if err != nil {
-				return 0, err
-			}
-			if r == '\n' {
-				break
-			}
-		}
-	}
+	off := b.Line(p.Line)
+	rd := b.NewReader(off)
 	// we are in the right line
 	for runesToSkip := p.Column - 1; runesToSkip > 0; runesToSkip-- {
 		r, _, err := rd.ReadRune()
@@ -241,44 +242,58 @@ func (b *Buf) PositionToOffset(p Position) (int, error) {
 	return rd.Offset(), nil
 }
 
-// Line returns the offset of the first character of Line n.  If n is
-// greater than the number of lines in the buffer, the offset of the first
-// character in the last line is returned.  Note Line numbers start at 1.
+// Line returns the offset of the first character of Line n.  
+// Note Line numbers start at 1.
+// FIXME: Either add error code, or make it panic if line number > number
 func (b *Buf) Line(n int) int {
-	off := 0
-	r := b.NewReader(off)
-	startOfLine := off
-	for linesToSkip := n - 1; linesToSkip > 0; linesToSkip-- {
+	var startOfLine, linesToSkip int
+	if b.lineCache.line != 0 && b.lineCache.line < n {
+		startOfLine = b.lineCache.off
+		linesToSkip = n - b.lineCache.line
+	} else if (b.lineCache.line == n) {
+		return b.lineCache.off
+	} else {
+		startOfLine = 0
+		linesToSkip = n - 1
+	} 
+	rd := b.NewReader(startOfLine)
+	for ; linesToSkip > 0; linesToSkip-- {
 		for {
-			rn, n, err := r.ReadRune()
-			off += n
+			rn, _, err := rd.ReadRune()
 			if err != nil {
 				return startOfLine
 			}
 			if rn == '\n' {
-				startOfLine = off
+				startOfLine = rd.Offset()
 				break
 			}
 		}
 	}
+	b.lineCache.line = n
+	b.lineCache.off = startOfLine
 	return startOfLine
 }
 
 // Lines returns the number of lines in the buffer
 // The empty buffer has exactly one (empty) line.
 func (b *Buf) Lines() int {
-	r := b.NewReader(0)
-	lines := 1
-	for {
-		rn, _, err := r.ReadRune()
-		if err != nil {
-			break
+	if b.lines != 0 {
+		return b.lines
+	} else {
+		r := b.NewReader(0)
+		lines := 1
+		for {
+			rn, _, err := r.ReadRune()
+			if err != nil {
+				break
+			}
+			if rn == '\n' {
+				lines++
+			}
 		}
-		if rn == '\n' {
-			lines++
-		}
-	}
-	return lines
+		b.lines = lines
+		return lines
+	} 
 }
 
 // The type of a Reader on the buffer.
