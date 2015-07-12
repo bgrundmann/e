@@ -217,14 +217,16 @@ func (b *Buf) Lines() int {
 }
 
 // The type of a Reader on the buffer.
-// Implements io.ReadSeeker and RuneReader also implements reading in 
-// reverse direction.  At the moment only for runes.
+// Implements io.ReadSeeker and RuneScanner.
+// It also implements reading in reverse direction.  At the moment only 
+// for runes.
 type Reader struct {
 	buf        *Buf
 	piece      *piece
 	offInPiece int // offset in the current piece
 	off        int // absolute offset in file
 	reverse    bool // read in reverse direction
+	lastRuneSize int // -1 if last read was not a ReadRune
 }
 
 // NewReader creates a new reader starting at off.
@@ -236,6 +238,7 @@ func (b *Buf) NewReader(off int) *Reader {
 		offInPiece: off - o,
 		off:        off,
 		reverse:    false,
+		lastRuneSize: -1,
 	}
 }
 
@@ -260,6 +263,7 @@ process_piece:
 	r.off += n
 	if offDst == len(dst) { // no more space in buffer
 		r.offInPiece += n
+		r.lastRuneSize = -1 // invalidate calls to UnreadRune
 		return offDst, nil
 	} else { // we are done with the current piece
 		// but there is still space in the buffer
@@ -327,12 +331,32 @@ read_next_byte:
 	goto read_next_byte
 }
 
-func (rd *Reader) ReadRune() (rune, int, error) {
+func (rd *Reader) ReadRune() (r rune, size int, err error) {
 	if rd.reverse {
-		return rd.readRuneBackward()
+		r, size, err = rd.readRuneBackward()
 	} else {
-		return rd.readRuneForward()
+		r, size, err = rd.readRuneForward()
 	} 
+	if err == nil {
+		rd.lastRuneSize = size
+	} 
+	return r, size, err
+} 
+
+
+func (rd *Reader) UnreadRune() error {
+	// TODO bgrundmann: This can be optimized for the common case
+	if rd.lastRuneSize < 0 {
+		return errors.New("Cannot call UnreadRune when previous operation wasn't ReadRune")
+	} 
+	var offset int64
+	if rd.reverse {
+		offset = int64(rd.off + rd.lastRuneSize)
+	} else {
+		offset = int64(rd.off - rd.lastRuneSize)
+	} 
+	_, err := rd.Seek(offset, 0)
+	return err
 } 
 
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
@@ -357,6 +381,7 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	r.off = absoluteOff
 	r.offInPiece = absoluteOff - o
 	r.piece = p
+	r.lastRuneSize = -1
 	return int64(absoluteOff), nil
 }
 

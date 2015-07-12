@@ -122,7 +122,7 @@ mainloop:
 		switch ev := termbox.PollEvent(); ev.Type {
 		case termbox.EventKey:
 			switch ev.Key {
-			case termbox.KeyEsc:
+			case termbox.KeyEsc: 
 				break mainloop
 			case termbox.KeyPgdn:
 				v.PageDown()
@@ -131,9 +131,9 @@ mainloop:
 			default:
 				switch ev.Ch {
 				case 'l':
-					v.moveCursor(motion.RuneBackward)
+					v.MoveCursor(motion.RuneForward)
 				case 'h':
-					v.moveCursor(motion.RuneForward)
+					v.MoveCursor(motion.RuneBackward)
 				}
 			}
 		case termbox.EventError:

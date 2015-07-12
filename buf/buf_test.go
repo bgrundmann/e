@@ -37,6 +37,43 @@ func ExampleBufReader() {
 	// Output: Hello
 }
 
+func TestUnreadRune(t *testing.T) {
+	var b Buf
+	b.Init()
+	b.Insert(0, []byte("Tes"))
+	b.Insert(3, []byte("t"))
+	r := b.NewReader(0)
+	check := func(c rune) {
+		if ch, n, err := r.ReadRune(); !(ch == c && n == 1 && err == nil) {
+			t.Errorf("Expected %c got: %c", c, ch)	
+		} 
+	} 
+	check('T')
+	if err := r.UnreadRune(); err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	} 
+	check('T')
+	check('e')
+	check('s')
+	if err := r.UnreadRune(); err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	} 
+	check('s')
+	check('t')
+	if err := r.UnreadRune(); err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	} 
+	check('t')
+	r.Reverse()
+	check('t')
+	check('s')
+	if err := r.UnreadRune(); err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	} 
+	check('s')
+	check('e')
+} 
+
 func TestBufReverseReader(t *testing.T) {
 	var b Buf
 	b.Init()
