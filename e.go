@@ -10,7 +10,7 @@ type View struct {
 	buffer        *buf.Buf // views may share same buffer
 	firstLine     int      // first visible line on screen
 	width, height int      // size last time it was displayed
-	cursorOff     int      // offset of cursor in buffer
+	cursor        buf.Marker
 }
 
 func (v *View) Init(b *buf.Buf) {
@@ -20,7 +20,7 @@ func (v *View) Init(b *buf.Buf) {
 	// sensible here.  Will be updated on first display
 	v.width = 80
 	v.height = 25
-	v.cursorOff = 0
+	v.cursor = v.buffer.NewMarker(0)
 }
 
 func (v *View) PageDown() {
@@ -40,10 +40,10 @@ func (v *View) PageUp() {
 
 // MoveCursor moves the cursor by motion
 func (v *View) MoveCursor(m motion.Motion) {
-	rd := v.buffer.NewReader(v.cursorOff)
+	rd := v.buffer.NewReader(v.cursor.Offset())
 	if m.Move(v.buffer, rd) {
 		pos, _ := rd.Seek(0, 1)
-		v.cursorOff = int(pos)
+		v.cursor.Move(int(pos))
 	}
 }
 
@@ -61,7 +61,7 @@ func (v *View) Display() {
 	termbox.HideCursor()
 	for {
 		rune, n, err := r.ReadRune()
-		if v.cursorOff == off {
+		if v.cursor.Offset() == off {
 			termbox.SetCursor(x, y)
 		}
 		off += n

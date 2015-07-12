@@ -43,16 +43,18 @@ type BufferObserver interface {
 // A text editors buffer.
 // It implements Writer.  Any writes done that way are appended at the end of the buffer.
 type Buf struct {
-	bytes     bytes.Buffer
-	sentinel  piece
-	len       int
-	observers []BufferObserver
+	bytes              bytes.Buffer
+	sentinel           piece
+	len                int
+	nextFreeObserverId int
+	observers          map[int]BufferObserver
 }
 
 // Init initializes a buffer and returns it.
 func (b *Buf) Init() *Buf {
 	b.sentinel.next = &b.sentinel
 	b.sentinel.prev = &b.sentinel
+	b.observers = make(map[int]BufferObserver)
 	return b
 }
 
@@ -182,25 +184,25 @@ func (b *Buf) Write(p []byte) (n int, err error) {
 // are counted in number of runes in the line NOT number of characters
 // displayed on the screen (e.g. '\t' counts as 1 not 8, ...).
 type Position struct {
-	Line int   
+	Line   int
 	Column int
-} 
+}
 
 // Translate a offset into a position.  Errors if offset is not a valid
-// position (that is either > length of the file or in the middle of a 
+// position (that is either > length of the file or in the middle of a
 // multibyte utf8 sequence).
 func (b *Buf) PositionFromOffset(off int) (Position, error) {
 	// TODO: This can obviously made more efficient by caching, etc...
-	pos := Position {
-		Line: 1,
+	pos := Position{
+		Line:   1,
 		Column: 1,
-	} 
+	}
 	rd := b.NewReader(0)
 	for rd.Offset() != off {
 		r, _, err := rd.ReadRune()
 		if err != nil {
 			return Position{}, err
-		} 
+		}
 		if r == '\n' {
 			pos.Line++
 			pos.Column = 1
@@ -209,7 +211,7 @@ func (b *Buf) PositionFromOffset(off int) (Position, error) {
 		}
 	}
 	return pos, nil
-} 
+}
 
 // Translate a position into an offset. Errors if the given position
 // is not a valid position.
@@ -220,24 +222,24 @@ func (b *Buf) PositionToOffset(p Position) (int, error) {
 			r, _, err := rd.ReadRune()
 			if err != nil {
 				return 0, err
-			} 
+			}
 			if r == '\n' {
 				break
-			} 
-		} 
-	} 
+			}
+		}
+	}
 	// we are in the right line
 	for runesToSkip := p.Column - 1; runesToSkip > 0; runesToSkip-- {
 		r, _, err := rd.ReadRune()
 		if err != nil {
 			return 0, err
-		} 
+		}
 		if r == '\n' {
 			return 0, fmt.Errorf("Invalid position line %i contains less than %i columns", p.Line, p.Column)
-		} 
-	} 
+		}
+	}
 	return rd.Offset(), nil
-} 
+}
 
 // Line returns the offset of the first character of Line n.  If n is
 // greater than the number of lines in the buffer, the offset of the first
@@ -252,7 +254,7 @@ func (b *Buf) Line(n int) int {
 			off += n
 			if err != nil {
 				return startOfLine
-			} 
+			}
 			if rn == '\n' {
 				startOfLine = off
 				break
@@ -281,26 +283,26 @@ func (b *Buf) Lines() int {
 
 // The type of a Reader on the buffer.
 // Implements io.ReadSeeker and RuneScanner.
-// It also implements reading in reverse direction.  At the moment only 
+// It also implements reading in reverse direction.  At the moment only
 // for runes.
 type Reader struct {
-	buf        *Buf
-	piece      *piece
-	offInPiece int // offset in the current piece
-	off        int // absolute offset in file
-	reverse    bool // read in reverse direction
-	lastRuneSize int // -1 if last read was not a ReadRune
+	buf          *Buf
+	piece        *piece
+	offInPiece   int  // offset in the current piece
+	off          int  // absolute offset in file
+	reverse      bool // read in reverse direction
+	lastRuneSize int  // -1 if last read was not a ReadRune
 }
 
 // NewReader creates a new reader starting at off.
 func (b *Buf) NewReader(off int) *Reader {
 	o, p := b.findPiece(off)
 	return &Reader{
-		buf:        b,
-		piece:      p,
-		offInPiece: off - o,
-		off:        off,
-		reverse:    false,
+		buf:          b,
+		piece:        p,
+		offInPiece:   off - o,
+		off:          off,
+		reverse:      false,
 		lastRuneSize: -1,
 	}
 }
@@ -308,12 +310,12 @@ func (b *Buf) NewReader(off int) *Reader {
 // Reverse reverses direction of reading.
 func (rd *Reader) Reverse() {
 	rd.reverse = !rd.reverse
-} 
+}
 
 func (r *Reader) Read(dst []byte) (int, error) {
 	if r.reverse {
 		panic("Reader.Read in reverse direction not implemented")
-	} 
+	}
 	offDst := 0
 process_piece:
 	if r.piece == &r.buf.sentinel { // no more bytes
@@ -361,34 +363,34 @@ func (rd *Reader) readRuneForward() (r rune, size int, err error) {
 
 func (rd *Reader) readRuneBackward() (r rune, size int, err error) {
 	var bytes [4]byte
-	size=0
+	size = 0
 read_next_byte:
 	if rd.off == 0 {
 		if size == 0 {
 			return 0, 0, io.EOF
-		} 
+		}
 		// this means we wanted to read another byte
 		// because we don't have a valid utf character
 		// yet but there are not anymore...
 		// TODO: handle that
 		panic("partial utf8 at end of buffer not yet implemented")
-	} 
+	}
 	if rd.offInPiece <= 0 {
 		rd.piece = rd.piece.prev
-		rd.offInPiece = rd.piece.off2 
-	} 
+		rd.offInPiece = rd.piece.off2
+	}
 	bytes[size] = rd.buf.sliceOfPiece(rd.piece)[rd.offInPiece-1]
 	size++
 	rd.offInPiece--
 	rd.off--
 	if rd.offInPiece <= 0 {
 		rd.piece = rd.piece.prev
-		rd.offInPiece = rd.piece.off2 
-	} 
+		rd.offInPiece = rd.piece.off2
+	}
 	if utf8.FullRune(bytes[:size]) {
 		r, size = utf8.DecodeRune(bytes[:size])
 		return r, size, nil
-	} 
+	}
 	// not a full rune read another byte into the
 	// buffer and try again
 	goto read_next_byte
@@ -399,34 +401,33 @@ func (rd *Reader) ReadRune() (r rune, size int, err error) {
 		r, size, err = rd.readRuneBackward()
 	} else {
 		r, size, err = rd.readRuneForward()
-	} 
+	}
 	if err == nil {
 		rd.lastRuneSize = size
-	} 
+	}
 	return r, size, err
-} 
-
+}
 
 func (rd *Reader) UnreadRune() error {
 	// TODO bgrundmann: This can be optimized for the common case
 	if rd.lastRuneSize < 0 {
 		return errors.New("Cannot call UnreadRune when previous operation wasn't ReadRune")
-	} 
+	}
 	var offset int64
 	if rd.reverse {
 		offset = int64(rd.off + rd.lastRuneSize)
 	} else {
 		offset = int64(rd.off - rd.lastRuneSize)
-	} 
+	}
 	_, err := rd.Seek(offset, 0)
 	return err
-} 
+}
 
 // Return the current offset of the reader in the file.
-// Equivalent to Seek(0, 1) but more readable 
+// Equivalent to Seek(0, 1) but more readable
 func (r *Reader) Offset() int {
 	return r.off
-} 
+}
 
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	// TODO: Many special cases could written out.  For example
@@ -454,3 +455,13 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	return int64(absoluteOff), nil
 }
 
+func (b *Buf) AddObserver(buf BufferObserver) int {
+	n := b.nextFreeObserverId
+	b.nextFreeObserverId++
+	b.observers[n] = buf
+	return n
+}
+
+func (b *Buf) RemoveObserver(id int) {
+	delete(b.observers, id)
+}

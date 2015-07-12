@@ -45,34 +45,34 @@ func TestUnreadRune(t *testing.T) {
 	r := b.NewReader(0)
 	check := func(c rune) {
 		if ch, n, err := r.ReadRune(); !(ch == c && n == 1 && err == nil) {
-			t.Errorf("Expected %c got: %c", c, ch)	
-		} 
-	} 
+			t.Errorf("Expected %c got: %c", c, ch)
+		}
+	}
 	check('T')
 	if err := r.UnreadRune(); err != nil {
 		t.Errorf("Unexpected error: %v", err)
-	} 
+	}
 	check('T')
 	check('e')
 	check('s')
 	if err := r.UnreadRune(); err != nil {
 		t.Errorf("Unexpected error: %v", err)
-	} 
+	}
 	check('s')
 	check('t')
 	if err := r.UnreadRune(); err != nil {
 		t.Errorf("Unexpected error: %v", err)
-	} 
+	}
 	check('t')
 	r.Reverse()
 	check('t')
 	check('s')
 	if err := r.UnreadRune(); err != nil {
 		t.Errorf("Unexpected error: %v", err)
-	} 
+	}
 	check('s')
 	check('e')
-} 
+}
 
 func TestBufReverseReader(t *testing.T) {
 	var b Buf
@@ -82,9 +82,9 @@ func TestBufReverseReader(t *testing.T) {
 	r.Reverse()
 	check := func(c rune) {
 		if ch, n, err := r.ReadRune(); !(ch == c && n == 1 && err == nil) {
-			t.Errorf("Expected %c got: %c", c, ch)	
-		} 
-	} 
+			t.Errorf("Expected %c got: %c", c, ch)
+		}
+	}
 	check('o')
 	check('l')
 	check('l')
@@ -92,8 +92,8 @@ func TestBufReverseReader(t *testing.T) {
 	check('H')
 	if ch, n, err := r.ReadRune(); err != io.EOF {
 		t.Errorf("Expected EOF got: %c - %i - %v", ch, n, err)
-	} 
-} 
+	}
+}
 
 func TestDeleteEnd(t *testing.T) {
 	var b Buf
