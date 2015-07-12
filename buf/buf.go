@@ -269,8 +269,16 @@ func (b *Buf) Line(n int) int {
 			}
 		}
 	}
-	b.lineCache.line = n
-	b.lineCache.off = startOfLine
+	// we always update the cache if it is invalid or
+	// if we asked for a line above the current line and we can't
+	// easily reach that line from the beginning or
+	// if it is more than a few lines past the the current line 
+	if (b.lineCache.line == 0) || 
+		(n < b.lineCache.line && n > 5) ||
+		(n - b.lineCache.line > 5) {
+		b.lineCache.line = n
+		b.lineCache.off = startOfLine
+	} 
 	return startOfLine
 }
 
