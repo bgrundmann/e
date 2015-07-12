@@ -364,14 +364,15 @@ process_piece:
 func (rd *Reader) readRuneForward() (r rune, size int, err error) {
 	bytes := rd.buf.sliceOfPiece(rd.piece)[rd.offInPiece:]
 	// specialisation of the common case
-	if utf8.FullRune(bytes) {
+	if len(bytes) > 0 && bytes[0] < 0x80 { // one byte utf-8 sequence
 		r, size = rune(bytes[0]), 1
-		if r >= 0x80 {
-			r, size = utf8.DecodeRune(bytes)
-		}
 		rd.off += size
 		rd.offInPiece += size
-	} else {
+	} else if utf8.FullRune(bytes) { // multi byte but complete in current piece
+		r, size = utf8.DecodeRune(bytes)
+		rd.off += size
+		rd.offInPiece += size
+	} else { // need to read several bytes
 		var buf [utf8.UTFMax]byte
 		n, err := rd.Read(buf[:])
 		if n == 0 {
