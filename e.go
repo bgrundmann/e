@@ -2,6 +2,7 @@ package main
 
 import "github.com/nsf/termbox-go"
 import "github.com/bgrundmann/e/buf"
+import "github.com/bgrundmann/e/motion"
 import "io"
 import "os"
 
@@ -37,22 +38,14 @@ func (v *View) PageUp() {
 	}
 }
 
-func (v *View) CursorLeft() {
-	r := v.buffer.NewReader(v.cursorOff)
-	r.Reverse()
-	_, n, err := r.ReadRune()
-	if err == nil {
-		v.cursorOff -= n
-	}
-}
-
-func (v *View) CursorRight() {
-	r := v.buffer.NewReader(v.cursorOff)
-	_, n, err := r.ReadRune()
-	if err == nil {
-		v.cursorOff += n
-	}
-}
+// MoveCursor moves the cursor by motion
+func (v *View) MoveCursor(m motion.Motion) {
+	rd := v.buffer.NewReader(v.cursorOff)
+	if m.Move(v.buffer, rd) {
+		pos, _ := rd.Seek(0, 1)
+		v.cursorOff = int(pos)
+	} 
+} 
 
 func (v *View) Display() {
 	// This implements simple wrapping
@@ -138,9 +131,9 @@ mainloop:
 			default:
 				switch ev.Ch {
 				case 'l':
-					v.CursorRight()
+					v.moveCursor(motion.RuneBackward)
 				case 'h':
-					v.CursorLeft()
+					v.moveCursor(motion.RuneForward)
 				}
 			}
 		case termbox.EventError:
